@@ -491,8 +491,8 @@ else:
     GRAPH_EXECUTOR = cppProfilingFlagsToProfilingMode()
 
 
-IMPORT_SLOW_TESTS = args.import_slow_tests
-IMPORT_DISABLED_TESTS = args.import_disabled_tests
+IMPORT_SLOW_TESTS = SLOW_TESTS_FILE
+IMPORT_DISABLED_TESTS = DISABLED_TESTS_FILE
 LOG_SUFFIX = args.log_suffix
 RUN_PARALLEL = args.run_parallel
 TEST_BAILOUTS = args.test_bailouts
@@ -592,20 +592,18 @@ def lint_test_case_extension(suite):
 
 def run_tests(argv=UNITTEST_ARGS):
     # import test files.
-    if IMPORT_SLOW_TESTS:
-        if os.path.exists(IMPORT_SLOW_TESTS):
-            global slow_tests_dict
-            with open(IMPORT_SLOW_TESTS, 'r') as fp:
-                slow_tests_dict = json.load(fp)
-        else:
-            print(f'[WARNING] slow test file provided but not found: {IMPORT_SLOW_TESTS}')
-    if IMPORT_DISABLED_TESTS:
-        if os.path.exists(IMPORT_DISABLED_TESTS):
-            global disabled_tests_dict
-            with open(IMPORT_DISABLED_TESTS, 'r') as fp:
-                disabled_tests_dict = json.load(fp)
-        else:
-            print(f'[WARNING] disabled test file provided but not found: {IMPORT_DISABLED_TESTS}')
+    if os.path.exists(IMPORT_SLOW_TESTS):
+        global slow_tests_dict
+        with open(IMPORT_SLOW_TESTS, 'r') as fp:
+            slow_tests_dict = json.load(fp)
+    else:
+        print(f'[WARNING] slow test file provided but not found: {IMPORT_SLOW_TESTS}')
+    if os.path.exists(IMPORT_DISABLED_TESTS):
+        global disabled_tests_dict
+        with open(IMPORT_DISABLED_TESTS, 'r') as fp:
+            disabled_tests_dict = json.load(fp)
+    else:
+        print(f'[WARNING] disabled test file provided but not found: {IMPORT_DISABLED_TESTS}')
     # Determine the test launch mechanism
     if TEST_DISCOVER:
         _print_test_names()

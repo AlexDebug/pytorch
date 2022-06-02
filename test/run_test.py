@@ -386,7 +386,7 @@ def get_executable_command(options, allow_pytest, disable_coverage=False):
     else:
         executable = [sys.executable]
     if allow_pytest:
-        executable += ["-m", "pytest"]
+        executable += ["-m", "pytest", "-n", "2"]
     else:
         print_to_stderr(
             "Pytest cannot be used for this test. Falling back to unittest."
@@ -411,9 +411,6 @@ def run_test(
     # If using pytest, replace -f with equivalent -x
     if options.pytest:
         unittest_args = [arg if arg != "-f" else "-x" for arg in unittest_args]
-    elif IS_IN_CI:
-        # use the downloaded test cases configuration, not supported in pytest
-        unittest_args.extend(["--import-slow-tests", "--import-disabled-tests"])
 
     # Multiprocessing related tests cannot run with coverage.
     # Tracking issue: https://github.com/pytorch/pytorch/issues/50661
