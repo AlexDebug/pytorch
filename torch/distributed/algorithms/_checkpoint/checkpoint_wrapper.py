@@ -123,3 +123,56 @@ def checkpoint_wrapper(
         )
 
     return CheckpointWrapper(module, checkpoint_impl, offload_to_cpu)
+
+
+def apply_activation_checkpointing_wrapper(
+    model, checkpoint_wrapper_fn=checkpoint_wrapper, check_fn=lambda _, _unused: True
+):
+    """
+    Applies :func:`checkpoint_wrapper` to modules within `model` based on a user-defined
+    configuration. For each module within `model`, the `check_fn` is used to decide
+    whether `module` should be wrapped with :func:`checkpoint_wrapper` or not.
+
+    Note::
+        This function modifies `model` in place and replaces appropriate layers with
+        their checkpoint-wrapped modules.
+    Usage::
+        model = nn.Sequential(
+            nn.Linear(10, 10), nn.Linear(10, 10), nn.Linear(10, 10)
+        )
+        check_fn = lambda m, l: isinstance(l, nn.Linear)
+        apply_activation_checkpointing(model, checkpoint_wrapper_fn=checkpoint_wrapper, check_fn=check_fn)
+    Args:
+        module (nn.Module):
+            The model who's submodules (or self) should be wrapped with activation checkpointing.
+        checkpoint_wrapper_fn (Optional[Callable[nn.Module]])
+            A `Callable` which will wrap modules
+        check_fn (Optional[Callable[nn.Module, nn.Module]])
+            A lambda function which will be passed overall model and current layer and returns
+            ``True`` or ``False`` depending on whether input layer should be wrapped.
+    Returns: None (`model` is modified inplace)
+    """
+    # checkpointed_submodules will create a list of (parent, child_attr, wrapped_child)
+    # which will allow us to set the checkpoint wrapped child on the parent appropriately.
+    checkpointed_submodules = []
+    for name, submodule in model.named_modules():
+        if check_fn(model, submodule):
+            # This submodule should be wrapped with activation checkpointing
+            tokens = name.strip().split(".")
+            submodule_parent = model
+            # Get parent layer of module by iterating through the tokenized FQN.
+            for token in tokens[:-1]:
+                # isnumeric() check to handle case where layers are in a list,
+                # see https://discuss.pytorch.org/t/how-to-replace-a-layer-with-own-custom-variant/43586/12
+                if not token.isnumeric():
+                    submodule_parent = getattr(submodule_parent, token)
+                else:
+                    submodule_parent = submodule_parent[int(token)]
+            # Create a checkpoint-wrapped version of submodule
+            checkpoint_wrapped_submodule = checkpoint_wrapper_fn(submodule)
+            # Add a tuple (parent, child_attr, wrapped_child) to set the checkpoint wrapped
+            # child after we've collected all such children to checkpoint-wrap.
+            checkpointed_submodules.append((submodule_parent, tokens[-1], checkpoint_wrapped_submodule))
+
+    for parent, attr, checkpointed in checkpointed_submodules:
+        setattr(parent, attr, checkpointed)
